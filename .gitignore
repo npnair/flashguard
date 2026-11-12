@@ -2,3 +2,7 @@ __pycache__/
 .pytest_cache/
 test_clips/
 reports/
+my_videos/
+*.mov
+*.mp4
+*.png

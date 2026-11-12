@@ -18,7 +18,11 @@ def clip_dir(tmp_path_factory):
     return d
 
 
-@pytest.mark.parametrize("name", list(make_test_clips.CLIPS))
+@pytest.mark.parametrize("name", [
+    pytest.param(n, marks=pytest.mark.xfail(reason=make_test_clips.KNOWN_LIMITS[n], strict=True))
+    if n in make_test_clips.KNOWN_LIMITS else n
+    for n in make_test_clips.CLIPS
+])
 def test_verdict(clip_dir, name):
     expected = make_test_clips.CLIPS[name][1]
     result = analyze_video(str(clip_dir / name))

@@ -142,37 +142,36 @@ def _regions(h: int, w: int):
 
 
 class _FlashCounter:
-    """Counts each pixel's opposing transitions over the last second, then asks:
-    in the worst 10 degree window, how many transitions/sec are at least 25%
-    of its pixels doing? Counting per pixel means patterns where half the
-    screen brightens while the other half darkens (checkerboards, stripes)
-    are still caught."""
+    """Turns pixel events into region-level transitions and counts them over the last second.
 
-    def __init__(self, shape, window: int):
+    A region has a transition when its NET flashing area is at least 25%:
+    (share of pixels that just brightened enough) minus (share that just
+    darkened enough). When the camera pans or an object moves, about as many
+    pixels brighten as darken, so they cancel out and motion isn't counted as
+    flashing. A real flash pushes a whole area the same way at once."""
+
+    def __init__(self, n_regions: int, window: int):
         self.window = window
-        self.ring = np.zeros((window,) + tuple(shape), np.uint8)
-        self.counts = np.zeros(shape, np.int32)
-        self.last_sign = np.zeros(shape, np.int8)
+        self.last_sign = np.zeros(n_regions, np.int8)
+        self.history: List[List[int]] = [[] for _ in range(n_regions)]
 
     def update(self, frame_idx: int, events: np.ndarray, regions) -> tuple[int, float]:
-        # only count a transition if it opposes the pixel's previous one
-        real = (events != 0) & (events != self.last_sign)
-        self.last_sign[real] = events[real]
-
-        slot = frame_idx % self.window
-        self.counts -= self.ring[slot]
-        self.ring[slot] = real
-        self.counts += real
-
-        k = 1.0 - AREA_FRAC   # 75th percentile = the rate at least 25% of pixels reach
+        pos = (events > 0).astype(np.float32)
+        neg = (events < 0).astype(np.float32)
         best = 0
         peak_area = 0.0
-        flashing_now = real.astype(np.float32)
-        for ys, xs in regions:
-            c = self.counts[ys, xs].ravel()
-            idx = int(np.floor(k * (c.size - 1)))
-            best = max(best, int(np.partition(c, idx)[idx]))
-            peak_area = max(peak_area, float(flashing_now[ys, xs].mean()))
+        for i, (ys, xs) in enumerate(regions):
+            net = float(pos[ys, xs].mean()) - float(neg[ys, xs].mean())
+            peak_area = max(peak_area, abs(net))
+            if abs(net) >= AREA_FRAC:
+                sign = 1 if net > 0 else -1
+                if sign != self.last_sign[i]:      # only opposing changes build flashes
+                    self.history[i].append(frame_idx)
+                    self.last_sign[i] = sign
+            h = self.history[i]
+            while h and h[0] <= frame_idx - self.window:
+                h.pop(0)
+            best = max(best, len(h))
         return best, peak_area
 
 
@@ -218,8 +217,8 @@ def analyze_video(path: str, progress: Optional[Callable[[int, int], None]] = No
 
     lum_tracker = _TransitionTracker((ah, aw))
     red_tracker = _TransitionTracker((ah, aw))
-    lum_counter = _FlashCounter((ah, aw), window)
-    red_counter = _FlashCounter((ah, aw), window)
+    lum_counter = _FlashCounter(len(regions), window)
+    red_counter = _FlashCounter(len(regions), window)
 
     avg_lum, g_tps, r_tps, areas = [], [], [], []
     idx = 0

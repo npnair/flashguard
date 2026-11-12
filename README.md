@@ -13,15 +13,15 @@ FlashGuard follows the WCAG 2.x "three flashes" threshold:
 - **Rate.** More than 3 flashes in any one second fails.
 - **Area.** Flashing only counts if it covers at least 25% of a 10 degree field of view. WCAG approximates that as a third of the screen's width by a third of its height, and FlashGuard slides that window across every frame.
 
-Flashes are counted **per pixel**. So patterns like a flipping checkerboard or stripes, where the average brightness never changes but every pixel is strobing, are still caught.
+**Motion isn't flashing.** When the camera pans or something moves, lots of pixels change, but about as many get brighter as get darker. FlashGuard measures the *net* flashing area in each window (pixels brightening minus pixels darkening), so motion cancels out while a real flash, which pushes a whole area the same way, still counts. The first version counted every pixel on its own, and testing it on real phone footage showed that camera movement caused false alarms. The motion test clips below came out of that.
 
 ## How it works
 
 1. Read each frame with OpenCV and convert the colors to linear light (the WCAG formula).
 2. Downscale to 160 px wide for speed.
-3. For every pixel, track brightness runs and record a transition when a run changes by enough.
-4. Keep a rolling one-second count of transitions per pixel.
-5. For every 10 degree window, find the flash rate that at least 25% of its pixels reach.
+3. For every pixel, track brightness runs and record when a run changes by enough.
+4. For every 10 degree window, a transition happens when the net share of pixels changing the same way is at least 25%.
+5. Keep a rolling one-second count of opposing transitions per window.
 6. Group failing seconds into incidents and write the reports.
 
 ## Usage
@@ -55,14 +55,27 @@ python -m pytest -q                            # check the detector gets them ri
 | safe_small_flash | PASS | Fast and full contrast, but too small an area |
 | caution_3_flashes_per_sec | CAUTION | Right at the limit |
 | UNSAFE_fullscreen_5hz | FAIL | Classic strobe |
-| UNSAFE_checkerboard_5hz | FAIL | Average brightness constant, every pixel flashing |
+| safe_fast_camera_pan | PASS | Fast pan across a textured scene |
+| safe_handheld_shake | PASS | Shaky handheld camera |
+| safe_fast_moving_ball | PASS | Bright object moving fast across the screen |
+| UNSAFE_flash_during_camera_pan | FAIL | Real flash on top of camera motion |
+| UNSAFE_checkerboard_5hz | known limit | Pattern reversal. Marked as an expected failure in the tests |
 | UNSAFE_red_flash_4hz | FAIL | Red vs equally bright gray: only the red test catches it |
 | UNSAFE_flash_burst_mid_clip | FAIL | Checks the incident is placed at the right time |
+
+## Checking a flagged section safely
+
+```bash
+python tools/snapshot.py my_video.mp4 3.1 5.0
+```
+
+Saves `snapshot.png`, a grid of still frames from 3.1s to 5.0s, so you can see what's there without playing the video.
 
 ## Limits
 
 This is a screening tool, not a certified Harding or PEAT test, and not medical advice. It doesn't yet handle:
 
+- Pattern reversal (a checkerboard or stripes flipping), where average brightness never changes
 - Harmful spatial patterns (static stripes)
 - Extended flashing rules (counted over longer windows)
 - Viewing distance or screen size (it assumes the video fills a typical screen)
