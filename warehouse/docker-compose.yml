@@ -1,0 +1,31 @@
+# Local PostgreSQL for the FlashGuard trailer study.
+#
+#   docker compose up -d        start it (first start also loads the CSVs)
+#   docker compose down         stop it (data is kept)
+#   docker compose down -v      stop it AND delete the data
+#
+# Connect with: host localhost, port 5433, database / user / password flashguard
+# (port 5433 instead of the usual 5432, so it can't clash with another Postgres on your machine)
+
+services:
+  db:
+    image: postgres:16
+    container_name: flashguard-db
+    environment:
+      POSTGRES_USER: flashguard
+      POSTGRES_PASSWORD: flashguard
+      POSTGRES_DB: flashguard
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../study/data:/data:ro                     # the study CSVs, read-only
+      - ./sql:/docker-entrypoint-initdb.d:ro      # runs load_raw.sql on the very first start
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flashguard -d flashguard"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:

@@ -1,0 +1,15 @@
+version: 2
+
+sources:
+  - name: raw
+    description: Untouched copies of the study CSVs (all text), loaded by ../sql/01_load_raw.sql
+    schema: raw
+    tables:
+      - name: games
+        description: One row per sampled Steam game (from study/collect_games.py)
+      - name: trailers
+        description: One row per trailer of each sampled game
+      - name: scans
+        description: One row per scan attempt (from study/scan_trailers.py). Failed downloads leave status = error rows.
+      - name: incidents
+        description: One row per flagged section inside a scanned trailer

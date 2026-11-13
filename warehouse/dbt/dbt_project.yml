@@ -1,0 +1,25 @@
+name: flashguard
+version: "1.0.0"
+config-version: 2
+profile: flashguard
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+vars:
+  # WCAG: more than 3 flashes in any one second fails
+  flag_threshold: 3.0
+  # stricter line used as a sensitivity check (the spot check found false alarms clustered at 3.5/sec)
+  clear_fail_threshold: 4.0
+
+models:
+  flashguard:
+    staging:
+      +schema: staging
+      +materialized: view
+    marts:
+      +schema: marts
+      +materialized: table

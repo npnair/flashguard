@@ -6,3 +6,5 @@ my_videos/
 *.mov
 *.mp4
 *.png
+warehouse/dbt/target/
+warehouse/dbt/logs/

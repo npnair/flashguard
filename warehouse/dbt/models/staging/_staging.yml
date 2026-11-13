@@ -1,0 +1,62 @@
+version: 2
+
+models:
+  - name: stg_games
+    description: Sampled Steam games with typed columns, price band, release era and review score.
+    columns:
+      - name: appid
+        data_tests: [unique, not_null]
+      - name: sampled_genre
+        data_tests: [not_null]
+      - name: price_band
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['Free', 'Under $10', '$10-19.99', '$20-39.99', '$40+', 'Unknown']
+
+  - name: stg_trailers
+    description: Every trailer of every sampled game.
+    columns:
+      - name: movie_id
+        data_tests: [unique, not_null]
+      - name: appid
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_games')
+                field: appid
+
+  - name: stg_scans
+    description: Latest successful FlashGuard scan per trailer.
+    columns:
+      - name: movie_id
+        data_tests: [unique, not_null]
+      - name: verdict
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['PASS', 'CAUTION', 'FAIL']
+      - name: appid
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_games')
+                field: appid
+
+  - name: stg_incidents
+    description: Flagged sections (incidents) inside scanned trailers.
+    columns:
+      - name: incident_id
+        data_tests: [unique, not_null]
+      - name: flash_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['general', 'red']
+      - name: movie_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_scans')
+                field: movie_id

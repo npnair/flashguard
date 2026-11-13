@@ -1,0 +1,44 @@
+version: 2
+
+models:
+  - name: fct_trailer_scans
+    description: >
+      One row per scanned trailer joined to its game. is_flagged uses the WCAG line
+      (more than 3 flashes/sec); is_clear_fail uses the stricter 4+/sec sensitivity line.
+    columns:
+      - name: movie_id
+        data_tests: [unique, not_null]
+      - name: game_name
+        data_tests: [not_null]
+      - name: is_flagged
+        data_tests: [not_null]
+
+  - name: fct_incidents
+    description: One row per flagged section, with its position in the trailer.
+    columns:
+      - name: incident_id
+        data_tests: [unique, not_null]
+      - name: position_decile
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+                quote: false
+
+  - name: agg_fail_rates
+    description: >
+      Fail rates by genre, price band, release era, popularity and frame rate, in long format
+      (filter on `dimension`). Each rate has a 95% Wilson interval (_low / _high).
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [dimension, segment]
+    columns:
+      - name: n_trailers
+        data_tests: [not_null]
+
+  - name: agg_incident_timing
+    description: Number of flagged sections starting in each tenth of the trailer.
+    columns:
+      - name: position_decile
+        data_tests: [unique, not_null]

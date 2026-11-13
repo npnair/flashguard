@@ -1,0 +1,15 @@
+# Connection to the local Docker Postgres (see ../docker-compose.yml).
+# Run dbt from this folder with:  dbt build --profiles-dir .
+# These are local-only demo credentials, not secrets.
+flashguard:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('FG_DB_HOST', 'localhost') }}"
+      port: "{{ env_var('FG_DB_PORT', '5433') | int }}"
+      user: flashguard
+      password: flashguard
+      dbname: flashguard
+      schema: analytics
+      threads: 4
