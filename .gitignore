@@ -8,3 +8,4 @@ my_videos/
 *.png
 warehouse/dbt/target/
 warehouse/dbt/logs/
+warehouse/dbt/.user.yml
