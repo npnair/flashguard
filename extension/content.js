@@ -30,7 +30,7 @@
     sensitivity: 'wcag',    // wcag: act above 3 flashes/sec (the WCAG limit); sensitive: act at 2 flashes/sec
     liveAction: 'dim',      // dim | pause, for flashing nobody saw coming
     scanAction: 'dim',      // dim | skip, for flashing found ahead of time (look-ahead or a check)
-    lookahead: true,        // hidden copy on YouTube
+    lookahead: false,       // off: YouTube won't play its embedded player inside youtube.com (error 152-4)
   };
   // act when transitions in the last second exceed this. Everything uses the same number.
   const THRESHOLD = { wcag: D.MAX_TRANSITIONS, sensitive: 3, early: 3 };
@@ -625,11 +625,15 @@
     return `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&controls=0&disablekb=1&playsinline=1&rel=0&iv_load_policy=3&fg_lookahead=1`;
   }
 
+  // Look-ahead is turned off. It worked in testing, but YouTube shows "Error 152-4" for its embedded player
+  // when it is loaded inside youtube.com, so the hidden copy never plays there. Tests can still switch it on.
+  const LOOKAHEAD_ON = typeof window.__fgLookaheadUrl === 'function';
+
   const lookahead = {
     frame: null, url: null, monitor: null, ready: false, error: null, paused: false, rate: null, lastTo: null, startedAt: 0, speed: 1.7,
 
     tick() {
-      const url = settings.enabled && settings.lookahead ? lookaheadUrl() : null;
+      const url = settings.enabled && LOOKAHEAD_ON ? lookaheadUrl() : null;
       const v = mainVideo();
       if (!url || !v || !isFinite(v.duration) || v.duration <= 0) { this.stop(); return; }
       watch(v);
@@ -718,7 +722,7 @@
     },
 
     status(m) {
-      if (!settings.lookahead) return { state: 'off' };
+      if (!LOOKAHEAD_ON) return { state: 'off' };
       if (m !== this.monitor) return { state: lookaheadUrl() ? 'starting' : 'not-youtube' };
       if (this.error) return { state: 'unavailable', reason: this.error };
       if (!this.ready) return { state: 'starting' };

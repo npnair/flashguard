@@ -1,4 +1,4 @@
-const DEFAULTS = { enabled: true, sensitivity: 'wcag', liveAction: 'dim', scanAction: 'dim', lookahead: true };
+const DEFAULTS = { enabled: true, sensitivity: 'wcag', liveAction: 'dim', scanAction: 'dim' };
 const $ = (id) => document.getElementById(id);
 
 // ---- settings
@@ -7,9 +7,7 @@ chrome.storage.sync.get(DEFAULTS, (s) => {
   $('sensitivity').value = s.sensitivity === 'early' ? 'sensitive' : s.sensitivity;
   $('liveAction').value = s.liveAction;
   $('scanAction').value = s.scanAction;
-  $('lookahead').checked = s.lookahead;
 });
-$('lookahead').addEventListener('change', (e) => { chrome.storage.sync.set({ lookahead: e.target.checked }); refresh(); });
 $('enabled').addEventListener('change', (e) => { chrome.storage.sync.set({ enabled: e.target.checked }); refresh(); });
 for (const id of ['sensitivity', 'liveAction', 'scanAction']) {
   $(id).addEventListener('change', (e) => chrome.storage.sync.set({ [id]: e.target.value }));
@@ -47,14 +45,6 @@ async function refresh() {
   else setStatus('Live protection is on for this video.', 'ok');
 
   const fmt = (x) => `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, '0')}`;
-  const la = s.lookahead || {};
-  const aheadText = {
-    on: la.done ? 'Look-ahead: checked to the end of this video.' : `Look-ahead: checked ${fmt(la.lead || 0)} ahead of you${la.rate ? ` (${la.rate}x)` : ''}.`,
-    starting: 'Look-ahead: starting\u2026',
-    unavailable: 'Look-ahead isn\u2019t available for this video (the creator may have turned off embedding). Live protection still works.',
-  }[la.state];
-  $('ahead').hidden = !aheadText || !$('enabled').checked;
-  if (aheadText) $('ahead').textContent = aheadText;
 
   if (s.scanning) {
     setStatus('Checking this video\u2026 (it plays hidden and muted)');

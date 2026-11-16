@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "FlashGuard",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Protects you from flashing that can trigger photosensitive seizures. Dims videos the moment dangerous flashing starts, and can check a video before you watch it.",
   "permissions": [
     "storage"
