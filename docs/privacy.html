@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlashGuard privacy policy</title>
+<style>
+  :root { --bg: #fafaf8; --fg: #1d1d1b; --muted: #6b6a66; --line: #e4e2dc; --link: #3a63c9;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #161614; --fg: #ecebe6; --muted: #a3a19a; --line: #34332f; --link: #7c9cf0; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 16px; line-height: 1.6; }
+  main { max-width: 680px; margin: 0 auto; padding: 48px 20px 64px; }
+  h1 { font-family: var(--serif); font-weight: 400; font-size: 2.1rem; line-height: 1.2; margin: 0 0 4px; }
+  h2 { font-size: 1.05rem; margin: 32px 0 6px; }
+  .updated { color: var(--muted); margin: 0 0 28px; }
+  a { color: var(--link); }
+  ul { padding-left: 1.2em; }
+  footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>FlashGuard privacy policy</h1>
+  <p class="updated">Last updated November 15, 2026</p>
+
+  <p>FlashGuard is a Chrome extension that protects people from video flashing that can trigger photosensitive seizures. It does all of its work on your own computer. It does not collect, send, sell or share any of your data.</p>
+
+  <h2>What FlashGuard reads</h2>
+  <p>To check for flashing, FlashGuard reads the frames of videos playing on the pages you visit. Each frame is shrunk to a small image and checked for flashing on your computer, then thrown away. Frames are never saved or sent anywhere.</p>
+
+  <h2>What FlashGuard saves</h2>
+  <ul>
+    <li><b>Your settings</b> (whether protection is on, how it reacts, and how sensitive it is). These are saved with Chrome's built-in extension storage. If you have Chrome sync turned on, Chrome syncs them to your other computers the way it syncs other extension settings.</li>
+    <li><b>Results of "Check this video first."</b> When you check a video, FlashGuard saves the times where flashing was found, along with the page address of that video, so it can protect you when you come back to it. These results stay on your computer and are never synced or sent anywhere. Removing the extension deletes them.</li>
+  </ul>
+
+  <h2>What FlashGuard never does</h2>
+  <ul>
+    <li>It never sends any data to me or to anyone else. It has no server.</li>
+    <li>It uses no analytics, tracking, ads or cookies.</li>
+    <li>It never reads anything on a page except video frames.</li>
+  </ul>
+
+  <h2>Why it runs on every site</h2>
+  <p>Flashing can show up in any video on any website, so FlashGuard needs to run on every page in order to protect you there. It only acts on video players.</p>
+
+  <h2>Contact</h2>
+  <p>Questions about this policy can be posted as an issue on the project's <a href="https://github.com/npnair/flashguard/issues">GitHub page</a>.</p>
+
+  <footer>FlashGuard is a screening tool based on the WCAG flash limits, not a medical device. <a href="./">Back to the FlashGuard study</a></footer>
+</main>
+</body>
+</html>

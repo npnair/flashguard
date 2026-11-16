@@ -3,16 +3,10 @@
  *
  * 1. Live protection: watches every playing video, runs the WCAG flash check on
  *    each frame, and dims (or pauses) the video when flashing goes over the limit.
- * 2. Look-ahead (YouTube): a hidden, muted copy of the same video plays ahead of
- *    you at 2x or more and sends back where the flashing is. The video you watch
- *    is dimmed exactly while flashing is on screen, starting with the first flash.
- * 3. "Check this video first": plays the video hidden and muted to map all of it.
+ * 2. "Check this video first": plays the video hidden and muted to map all of it,
+ *    then dims or skips those sections while you watch.
  *
- * Live protection and the check share one rule (the "React at" setting), and so
- * does look-ahead, so all three always agree.
- *
- * The same script also runs inside the hidden copy (an iframe whose address has
- * fg_lookahead=1), where it only scans and reports.
+ * Both share one rule (the "React at" setting), so they always agree.
  */
 (() => {
   'use strict';
@@ -21,8 +15,6 @@
 
   const D = globalThis.FlashGuardDetector;
   const hasChrome = typeof chrome !== 'undefined' && !!(chrome.runtime && chrome.runtime.id && chrome.storage);
-  const params = new URLSearchParams(location.search);
-  const IS_SHADOW = params.get('fg_lookahead') === '1';
 
   // ---------------------------------------------------------------- settings
   const DEFAULTS = {
@@ -69,8 +61,6 @@
   }
   // fastest speed at which every frame of a 30 fps video still gets drawn
   const speedFor = (hz) => (isFinite(hz) && hz > 0 ? Math.max(1, Math.min(4, Math.floor(hz / 30 + 0.1))) : 2);
-  // the hidden copy runs a bit under that, so it doesn't drop frames, and still gains time on you
-  const aheadSpeedFor = (hz) => (isFinite(hz) && hz > 0 ? Math.max(1.25, Math.min(4, Math.round(hz / 30 * 0.85 * 20) / 20)) : 1.7);
 
   /** Reads small frames from a video and runs the detector on them. */
   class FrameReader {
@@ -118,81 +108,6 @@
       else out.push([x[0], x[1]]);
     }
     return out;
-  }
-
-  // ================================================================= HIDDEN COPY (inside the iframe)
-  if (IS_SHADOW) {
-    runShadow();
-    return;
-  }
-
-  function runShadow() {
-    const post = (msg) => window.parent.postMessage({ __flashguard: 'lookahead', ...msg }, '*');
-    let video = null, reader = null, rate = 1.7, paused = false;
-    let from = null, batch = [], lastPost = 0, lastT = -1, gotFrame = false;
-    const config = { window: [1 / 3, 1 / 3] };
-
-    window.addEventListener('message', (e) => {
-      if (e.source !== window.parent || !e.data || e.data.__flashguard !== 'control') return;
-      const m = e.data;
-      if (m.type === 'config') {
-        config.window = m.window;
-        if (reader) reader.setWindow(m.window);
-        if (m.rate && m.rate !== rate) { rate = m.rate; if (video && !paused) video.playbackRate = rate; }
-      }
-      if (m.type === 'seek' && video) { video.currentTime = m.t; from = null; if (reader) reader.reset(); }
-      if (m.type === 'pause' && video) { paused = true; video.pause(); }
-      if (m.type === 'play' && video) { paused = false; video.playbackRate = rate; video.play().catch(() => {}); }
-    });
-
-    const adShowing = () => !!document.querySelector('.ad-showing, .ad-interrupting');
-
-    function frame(t) {
-      if (adShowing()) return;                 // ads play in the same player: never mix them into the map
-      gotFrame = true;
-      lastT = t;
-      if (video.muted !== true) video.muted = true;
-      if (!paused && video.playbackRate !== rate) video.playbackRate = rate;
-      const res = reader.push(t);
-      if (!res) { if (reader.blocked) post({ type: 'error', reason: 'blocked' }); return; }
-      if (from === null) from = t;
-      if (res.worst >= 3) batch.push({ t: res.t, worst: res.worst, red: res.red, general: res.general, first: res.first, last: res.last });
-      const now = performance.now();
-      if (now - lastPost > 200) {
-        post({ type: 'progress', from, to: t, samples: batch, duration: video.duration, rate });
-        batch = [];
-        lastPost = now;
-      }
-    }
-
-    function loop() {
-      if ('requestVideoFrameCallback' in video) video.requestVideoFrameCallback((n, meta) => { frame(meta.mediaTime); loop(); });
-    }
-
-    function attach(v) {
-      video = v;
-      reader = new FrameReader(v);
-      reader.setWindow(config.window);
-      v.muted = true;
-      v.addEventListener('seeking', () => { from = null; reader.reset(); });
-      v.addEventListener('ended', () => post({ type: 'progress', from: from ?? lastT, to: v.duration, samples: batch, duration: v.duration, done: true }));
-      v.playbackRate = rate;
-      v.play().catch(() => {});
-      loop();
-      // if this hidden frame isn't getting draw callbacks, read frames on a timer instead
-      setTimeout(() => {
-        if (gotFrame) return;
-        setInterval(() => { if (!v.paused && v.currentTime !== lastT) frame(v.currentTime); }, 12);
-      }, 2000);
-      post({ type: 'ready' });
-    }
-
-    const started = Date.now();
-    const find = setInterval(() => {
-      const v = document.querySelector('video');
-      if (v && v.readyState > 0) { clearInterval(find); attach(v); }
-      else if (Date.now() - started > 15000) { clearInterval(find); post({ type: 'error', reason: 'unavailable' }); }
-    }, 250);
   }
 
   // ================================================================= MAIN PAGE
@@ -608,131 +523,9 @@
     }
   }
 
-  // ================================================================= LOOK-AHEAD (main page side)
-  //
-  // On a YouTube watch page, loads the same video as a hidden, muted embed. The
-  // copy plays faster than you watch, so it gets further ahead every second, and
-  // sends back where the flashing is. Live protection covers the moment before it
-  // gets ahead and any part it hasn't reached yet.
-  const MAX_LEAD = 180, RESUME_LEAD = 120;   // don't run more than 3 minutes ahead
-
-  function lookaheadUrl() {
-    if (typeof window.__fgLookaheadUrl === 'function') return window.__fgLookaheadUrl();   // automated tests
-    const host = location.hostname.replace(/^(www|m)\./, '');
-    if (host !== 'youtube.com' || location.pathname !== '/watch') return null;
-    const id = new URLSearchParams(location.search).get('v');   // read fresh: YouTube changes videos without reloading
-    if (!id || !/^[\w-]{6,20}$/.test(id)) return null;
-    return `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&controls=0&disablekb=1&playsinline=1&rel=0&iv_load_policy=3&fg_lookahead=1`;
-  }
-
-  // Look-ahead is turned off. It worked in testing, but YouTube shows "Error 152-4" for its embedded player
-  // when it is loaded inside youtube.com, so the hidden copy never plays there. Tests can still switch it on.
-  const LOOKAHEAD_ON = typeof window.__fgLookaheadUrl === 'function';
-
-  const lookahead = {
-    frame: null, url: null, monitor: null, ready: false, error: null, paused: false, rate: null, lastTo: null, startedAt: 0, speed: 1.7,
-
-    tick() {
-      const url = settings.enabled && LOOKAHEAD_ON ? lookaheadUrl() : null;
-      const v = mainVideo();
-      if (!url || !v || !isFinite(v.duration) || v.duration <= 0) { this.stop(); return; }
-      watch(v);
-      const m = monitors.get(v);
-      if (m.unsupported) { this.stop(); return; }
-      if (this.url !== url || this.monitor !== m) this.start(url, m);
-      if (!this.ready) {
-        if (!this.error && Date.now() - this.startedAt > 20000) { this.error = 'unavailable'; this.removeFrame(); }
-        return;
-      }
-      this.send({ type: 'config', window: m.viewWindow(), rate: this.speed });
-      // keep the copy ahead of you, but not too far
-      const map = this.map(m);
-      const t = v.currentTime;
-      const range = map.covered.find((r) => t >= r[0] - 0.5 && t <= r[1] + 0.5);
-      const lead = range ? range[1] - t : 0;
-      if (!range && (this.lastTo === null || this.lastTo < t)) this.send({ type: 'seek', t });   // it fell behind: catch up from here
-      if (lead > MAX_LEAD && !this.paused) { this.paused = true; this.send({ type: 'pause' }); }
-      if (lead < RESUME_LEAD && this.paused) { this.paused = false; this.send({ type: 'play' }); }
-    },
-
-    start(url, m) {
-      this.stop();
-      this.url = url;
-      this.monitor = m;
-      this.ready = false;
-      this.error = null;
-      this.paused = false;
-      this.lastTo = null;
-      this.startedAt = Date.now();
-      if (!aheadMaps.has(m.key())) aheadMaps.set(m.key(), { samples: [], covered: [] });
-      const f = document.createElement('iframe');
-      f.src = url;
-      f.allow = 'autoplay';
-      f.title = 'FlashGuard look-ahead (hidden)';
-      f.setAttribute('aria-hidden', 'true');
-      f.tabIndex = -1;
-      // on the page (so the browser keeps playing it) but invisible and out of the way
-      f.style.cssText = 'position:fixed;right:0;bottom:0;width:320px;height:180px;border:0;opacity:0;pointer-events:none;z-index:-1;';
-      (document.body || document.documentElement).appendChild(f);
-      this.frame = f;
-      f.addEventListener('load', () => this.send({ type: 'config', window: m.viewWindow(), rate: this.speed }));
-      measureRefresh().then((hz) => { this.speed = aheadSpeedFor(hz); });
-    },
-
-    removeFrame() { if (this.frame) this.frame.remove(); this.frame = null; this.ready = false; },
-
-    stop() {
-      this.removeFrame();
-      this.url = null;
-      this.monitor = null;
-      this.error = null;
-    },
-
-    send(msg) { if (this.frame && this.frame.contentWindow) this.frame.contentWindow.postMessage({ __flashguard: 'control', ...msg }, '*'); },
-
-    map(m) {
-      const k = m.key();
-      if (!aheadMaps.has(k)) aheadMaps.set(k, { samples: [], covered: [] });
-      return aheadMaps.get(k);
-    },
-
-    onMessage(e) {
-      if (!this.frame || e.source !== this.frame.contentWindow) return;
-      const d = e.data;
-      if (!d || d.__flashguard !== 'lookahead') return;
-      if (d.type === 'ready') { this.ready = true; this.send({ type: 'config', window: this.monitor.viewWindow(), rate: this.speed }); return; }
-      if (d.type === 'error') { this.error = d.reason; this.removeFrame(); return; }
-      if (d.type === 'progress' && this.monitor) {
-        this.ready = true;
-        this.rate = d.rate;
-        this.lastTo = d.to;
-        const map = this.map(this.monitor);
-        for (const s of d.samples || []) map.samples.push(s);
-        if (typeof d.from === 'number' && typeof d.to === 'number' && d.to >= d.from) {
-          map.covered = mergeRanges([...map.covered, [d.from, d.to]]);
-        }
-      }
-    },
-
-    onSeek(m) {
-      if (m !== this.monitor || !this.ready) return;
-      const t = m.video.currentTime;
-      const map = this.map(m);
-      if (!map.covered.some((r) => t >= r[0] && t <= r[1] - 1)) this.send({ type: 'seek', t });
-    },
-
-    status(m) {
-      if (!LOOKAHEAD_ON) return { state: 'off' };
-      if (m !== this.monitor) return { state: lookaheadUrl() ? 'starting' : 'not-youtube' };
-      if (this.error) return { state: 'unavailable', reason: this.error };
-      if (!this.ready) return { state: 'starting' };
-      const map = this.map(m);
-      const t = m.video.currentTime;
-      const range = map.covered.find((r) => t >= r[0] - 0.5 && t <= r[1] + 0.5);
-      return { state: 'on', lead: range ? Math.max(0, range[1] - t) : 0, rate: this.rate, done: range && range[1] >= m.video.duration - 0.5 };
-    },
-  };
-  window.addEventListener('message', (e) => lookahead.onMessage(e));
+  // Look-ahead (a hidden copy of a YouTube video playing ahead of you) was removed: YouTube won't play
+  // its embedded player inside youtube.com. See README. This stub keeps the rest of the code unchanged.
+  const lookahead = { status: () => ({ state: 'off' }), onSeek() {} };
 
   // ---------------------------------------------------------------- finding videos
   function watch(video) {
@@ -771,9 +564,6 @@
       m.showScanProgress(Math.min(1, (m.lastT || 0) / m.video.duration));
     });
   });
-
-  // look-ahead follows the page (YouTube changes videos without reloading the page)
-  if (window === window.top) setInterval(() => lookahead.tick(), 500);
 
   // load earlier "Check this video first" results
   if (hasChrome) {

@@ -60,4 +60,4 @@ This is a screening tool based on the WCAG limits, not a medical device. It does
 
 ## What I tried that didn't work
 
-**Look-ahead on YouTube.** The idea was to play a hidden, muted copy of the video a few seconds ahead of you, so flashing could be dimmed from its first flash to its last. On test pages it dimmed within about 0.2 seconds of each edge. On real YouTube it never started: YouTube refuses to play its embedded player inside youtube.com itself (error 152-4), even though the same player plays fine on other sites. The code is still in `content.js` but switched off.
+**Look-ahead on YouTube.** The idea was to play a hidden, muted copy of the video a few seconds ahead of you, so flashing could be dimmed from its first flash to its last. On test pages it dimmed within about 0.2 seconds of each edge. On real YouTube it never started: YouTube refuses to play its embedded player inside youtube.com itself (error 152-4), even though the same player plays fine on other sites. I removed it from the extension rather than leave a feature that can't work.
