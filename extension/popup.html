@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <img src="icons/icon48.png" alt="" width="28" height="28">
+    <div>
+      <h1>FlashGuard</h1>
+      <p class="tag">Protection from seizure-triggering flashing</p>
+    </div>
+    <label class="switch" title="Turn protection on or off">
+      <input type="checkbox" id="enabled">
+      <span></span>
+    </label>
+  </header>
+
+  <section id="status-box">
+    <p id="status">Looking for a video on this page…</p>
+    <p id="ahead" hidden></p>
+    <button id="check" disabled>Check this video first</button>
+    <div class="bar" id="bar" hidden><div id="fill"></div></div>
+    <ul id="segments" hidden></ul>
+  </section>
+
+  <section class="settings">
+    <label class="check"><input type="checkbox" id="lookahead">
+      <span><b>Look ahead on YouTube</b><br>A hidden, muted copy of the video plays ahead of you, so flashing is dimmed before it reaches you.</span>
+    </label>
+    <label>Flashing found ahead of time
+      <select id="scanAction">
+        <option value="dim">Dim it while it plays</option>
+        <option value="skip">Skip over it</option>
+      </select>
+    </label>
+    <label>Flashing nobody saw coming
+      <select id="liveAction">
+        <option value="dim">Dim the video</option>
+        <option value="pause">Pause the video</option>
+      </select>
+    </label>
+    <label>React at
+      <select id="sensitivity">
+        <option value="wcag">Over 3 flashes/sec (WCAG limit, recommended)</option>
+        <option value="sensitive">2 flashes/sec (extra sensitive, more false alarms)</option>
+      </select>
+    </label>
+  </section>
+
+  <footer>Screening tool based on the WCAG flash limits. It can't catch everything, so it doesn't replace other precautions.</footer>
+  <script src="popup.js"></script>
+</body>
+</html>
