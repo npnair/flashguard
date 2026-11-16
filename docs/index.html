@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlashGuard: Seizure-Risk Flashing in Steam Game Trailers</title>
+<meta name="description" content="FlashGuard scanned 240 Steam game trailers against the WCAG limits for flashing content. About 1 in 3 was flagged.">
+<style>
+  :root {
+    --bg: #fafaf8; --fg: #1d1d1b; --muted: #6b6a66; --panel: #ffffff; --line: #e4e2dc;
+    --series-1: #3a63c9; --series-2: #16295e; --grid: #ecebe6; --axis: #c9c7c0; --ref: #b5452c;
+    --tip-bg: #ffffff; --tip-shadow: 0 6px 20px rgba(0,0,0,.12);
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161614; --fg: #ecebe6; --muted: #a3a19a; --panel: #1f1f1d; --line: #34332f;
+      --series-1: #7c9cf0; --series-2: #c9d6fa; --grid: #2a2a27; --axis: #4a4944; --ref: #e58a6e;
+      --tip-bg: #262624; --tip-shadow: 0 6px 20px rgba(0,0,0,.5);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px; line-height: 1.5; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 32px 20px 48px; }
+  h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(1.7rem, 3.5vw, 2.4rem); line-height: 1.2; margin: 0 0 6px; }
+  .sub { color: var(--muted); margin: 0 0 18px; }
+  .take { font-size: 1.15rem; line-height: 1.5; margin: 0 0 24px; max-width: 60rem; }
+  .take b { font-variant-numeric: tabular-nums; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-bottom: 24px; }
+  .card, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; min-width: 0; }
+  .card-label { font-weight: 600; }
+  .card-value { font-family: var(--serif); font-size: 2.4rem; line-height: 1.1; margin: 6px 0; font-variant-numeric: tabular-nums; }
+  .card-note { color: var(--muted); font-size: .85rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 18px; }
+  .panel h2 { font-size: 1.1rem; font-weight: 600; margin: 0 0 4px; }
+  .panel p { color: var(--muted); font-size: .85rem; margin: 0 0 10px; }
+  .panel p b { color: var(--fg); font-variant-numeric: tabular-nums; }
+  .wide { grid-column: 1 / -1; }
+  .chart { position: relative; min-height: 220px; }
+  .chart svg { display: block; overflow: visible; }
+  .chart text { font-size: 12px; fill: var(--muted); font-variant-numeric: tabular-nums; font-family: var(--sans); }
+  .chart .label { fill: var(--fg); }
+  .chart .domain, .chart .tick line { stroke: var(--axis); }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: .8rem; color: var(--muted); margin: 0 0 8px; }
+  .key { display: inline-block; width: 12px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .key-1 { background: var(--series-1); } .key-2 { background: var(--series-2); }
+  .key-line { display: inline-block; width: 14px; border-top: 2px solid var(--muted); margin-right: 6px; vertical-align: 3px; }
+  .key-ref { display: inline-block; width: 14px; border-top: 1.5px dashed var(--ref); margin-right: 6px; vertical-align: 3px; }
+  .tip { position: absolute; pointer-events: none; background: var(--tip-bg); border: 1px solid var(--line); box-shadow: var(--tip-shadow); border-radius: 8px; padding: 8px 12px; font-size: .8rem; max-width: 240px; z-index: 2; line-height: 1.45; }
+  .tip .m { color: var(--muted); }
+  .tip .h { font-weight: 600; }
+  .notes { margin-top: 24px; }
+  .notes summary { cursor: pointer; font-weight: 600; }
+  .notes ul { padding-left: 1.2rem; color: var(--muted); }
+  .notes li { margin-bottom: 6px; }
+  a { color: inherit; }
+  footer { margin-top: 28px; color: var(--muted); font-size: .85rem; }
+  .err { color: var(--muted); padding: 12px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>How many game trailers could trigger a photosensitive seizure?</h1>
+  <p class="sub">FlashGuard scanned the main trailer of a random sample of Steam games against the WCAG limits for flashing content.</p>
+
+  <p class="take" id="takeaway">
+    <b id="take-flagged">—</b> of <b id="take-n">—</b> trailers break the WCAG limit of three flashes per second.
+    By genre, <b id="take-genre">—</b> trailers are flagged most (<b id="take-genre-pct">—</b>), and by price the
+    <b id="take-price">—</b> band is highest at <b id="take-price-pct">—</b>.
+  </p>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-label">Trailers scanned</div>
+      <div class="card-value" id="kpi-n">—</div>
+      <div class="card-note">Main trailer of each sampled game, 6 genres</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Flagged</div>
+      <div class="card-value" id="kpi-flagged">—</div>
+      <div class="card-note">More than 3 flashes in some 1-second window (WCAG)</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Clear fail</div>
+      <div class="card-value" id="kpi-clear">—</div>
+      <div class="card-note">4 or more flashes per second, the stricter check</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Flagged footage per failing trailer</div>
+      <div class="card-value" id="kpi-seconds">—</div>
+      <div class="card-note">Median seconds of flagged sections, so most fixes are short edits</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <section class="panel">
+      <h2>Flag rate by genre</h2>
+      <p>40 trailers per genre. Whiskers show the 95% range for the flagged share.</p>
+      <div class="legend">
+        <span><i class="key key-1"></i>Flagged (&gt; 3/sec)</span>
+        <span><i class="key key-2"></i>Clear fail (4+/sec)</span>
+        <span><i class="key-line"></i>95% range</span>
+        <span><i class="key-ref"></i>All trailers</span>
+      </div>
+      <div class="chart" id="chart-genre"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Flag rate by price</h2>
+      <p>Free and $40+ have fewer than 20 trailers each, so their ranges are wide.</p>
+      <div class="legend">
+        <span><i class="key key-1"></i>Flagged (&gt; 3/sec)</span>
+        <span><i class="key key-2"></i>Clear fail (4+/sec)</span>
+        <span><i class="key-line"></i>95% range</span>
+        <span><i class="key-ref"></i>All trailers</span>
+      </div>
+      <div class="chart" id="chart-price"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Flag rate by release year</h2>
+      <p>Grouped by the game's release date on Steam.</p>
+      <div class="chart" id="chart-era"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Where in a trailer the flashing starts</h2>
+      <p>Each flagged section by how far into its trailer it begins. The busiest stretch is
+        <b id="timing-peak">—</b>, with <b id="timing-peak-share">—</b> of all flagged sections.</p>
+      <div class="chart" id="chart-timing"></div>
+    </section>
+
+    <section class="panel wide">
+      <h2>Brightness, not red, causes almost all failures</h2>
+      <p>Of <b id="ft-flagged">—</b> flagged trailers, <b id="ft-bright">—</b> have brightness flashes and only
+        <b id="ft-red">—</b> fail on saturated red alone. On frame rate, 60 fps trailers are flagged at
+        <b id="fps-60">—</b> against <b id="fps-30">—</b> for 30 fps, likely because big new releases use 60 fps.</p>
+    </section>
+  </div>
+
+  <details class="notes">
+    <summary>How this was measured, and its limits</summary>
+    <ul>
+      <li><b>Detector.</b> FlashGuard checks every frame against the WCAG 2.x three-flashes rule: a flash is a pair of opposing brightness changes of at least 10%, it must cover at least 25% of a 10° field of view, and more than 3 flashes in any one second fails. Saturated red is checked separately. Camera motion is filtered out by counting the net flashing area.</li>
+      <li><b>Sample.</b> 40 random games per genre from SteamSpy (Action, RPG, Strategy, Simulation, Sports, Indie), each with at least about 20,000 owners. Only each game's main trailer was scanned, downloaded at low resolution and deleted after scanning. Adventure, Racing and Casual are missing because SteamSpy returned no games for them.</li>
+      <li><b>Spot check.</b> Still frames from 6 random flagged trailers were reviewed: 4 were clear real flashes and 2 were borderline false alarms, both at exactly 3.5 flashes per second. The "clear fail" line (4+ per second) leaves those borderline cases out, and the finding holds at about 30%.</li>
+      <li><b>Not a certified test.</b> This is an automated screen, not a Harding test. A flagged trailer has been flagged by the screen, not proven dangerous. Pattern reversals (flipping stripes or checkerboards) aren't detected yet, so the true rate could be higher.</li>
+      <li><b>Data.</b> The numbers on this page are calculated in your browser from the study's CSV files: <a href="data/games.csv">games.csv</a>, <a href="data/scans.csv">scans.csv</a> and <a href="data/incidents.csv">incidents.csv</a>.</li>
+    </ul>
+  </details>
+
+  <footer>
+    Built by Naveen Nair. Detector, study pipeline, PostgreSQL + dbt models and data:
+    <a href="https://github.com/npnair/flashguard">github.com/npnair/flashguard</a>
+  </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script>
+(() => {
+  // ---------- calculations (same logic as the dbt models in warehouse/dbt) ----------
+  const num = (v) => (v === null || v === undefined || v === '' ? null : Number(v));
+  const r1 = (v) => Math.round(v * 10) / 10;
+
+  function buildTrailers(scans, games) {
+    const latest = new Map();
+    for (const s of scans) {
+      if (s.status !== 'ok') continue;
+      const prev = latest.get(s.movie_id);
+      if (!prev || String(s.scanned_at) > String(prev.scanned_at)) latest.set(s.movie_id, s);
+    }
+    const gameById = new Map(games.map((g) => [g.appid, g]));
+    return [...latest.values()].map((s) => {
+      const g = gameById.get(s.appid) || {};
+      const isFree = String(g.is_free).toLowerCase() === 'true';
+      const price = num(g.price_usd);
+      let priceBand = 'Unknown', priceOrder = 9;
+      if (isFree || price === 0) { priceBand = 'Free'; priceOrder = 0; }
+      else if (price !== null && price < 10) { priceBand = 'Under $10'; priceOrder = 1; }
+      else if (price !== null && price < 20) { priceBand = '$10–19.99'; priceOrder = 2; }
+      else if (price !== null && price < 40) { priceBand = '$20–39.99'; priceOrder = 3; }
+      else if (price !== null) { priceBand = '$40+'; priceOrder = 4; }
+      const ym = String(g.release_date || '').match(/([0-9]{4})/);
+      const year = ym ? Number(ym[1]) : null;
+      let era = 'Unknown', eraOrder = 9;
+      if (year !== null && year <= 2014) { era = '2014 and earlier'; eraOrder = 1; }
+      else if (year !== null && year <= 2018) { era = '2015–2018'; eraOrder = 2; }
+      else if (year !== null && year <= 2022) { era = '2019–2022'; eraOrder = 3; }
+      else if (year !== null) { era = '2023 and later'; eraOrder = 4; }
+      const peak = Math.max(num(s.peak_general_fps) || 0, num(s.peak_red_fps) || 0);
+      const fps = num(s.fps);
+      return {
+        movie_id: s.movie_id, genre: g.sampled_genre || 'Unknown',
+        price_band: priceBand, price_order: priceOrder, release_era: era, era_order: eraOrder,
+        fps_group: fps !== null && fps >= 48 ? '60 fps' : '30 fps or less',
+        flagged: peak > 3, clear_fail: peak >= 4,
+        failing_seconds: num(s.failing_seconds), duration_sec: num(s.duration_sec),
+        n_general: num(s.n_general_incidents) || 0, n_red: num(s.n_red_incidents) || 0,
+      };
+    });
+  }
+
+  function buildOverall(trailers) {
+    const n = trailers.length;
+    const flagged = trailers.filter((t) => t.flagged);
+    const clear = trailers.filter((t) => t.clear_fail);
+    const secs = flagged.map((t) => t.failing_seconds).filter((v) => v !== null);
+    return {
+      n, n_flagged: flagged.length,
+      flagged_pct: r1(100 * flagged.length / n), clear_pct: r1(100 * clear.length / n),
+      median_flagged_sec: secs.length ? r1(d3.median(secs)) : null,
+      n_brightness: flagged.filter((t) => t.n_general > 0).length,
+      n_red_only: flagged.filter((t) => t.n_red > 0 && t.n_general === 0).length,
+    };
+  }
+
+  function buildRates(trailers) {
+    const z = 1.96;
+    const wilson = (k, n) => {
+      const p = k / n, d = 1 + z * z / n;
+      const c = (p + z * z / (2 * n)) / d;
+      const h = (z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))) / d;
+      return [c - h, c + h];
+    };
+    const pct = (v) => Math.round(v * 1000) / 10;
+    const dims = [
+      ['Overall', () => 'All trailers', () => 0],
+      ['Genre', (t) => t.genre, () => 0],
+      ['Price', (t) => t.price_band, (t) => t.price_order],
+      ['Release era', (t) => t.release_era, (t) => t.era_order],
+      ['Frame rate', (t) => t.fps_group, (t) => (t.fps_group === '60 fps' ? 2 : 1)],
+    ];
+    const rows = [];
+    for (const [dimension, segOf, orderOf] of dims) {
+      const groups = d3.group(trailers, segOf);
+      for (const [segment, items] of groups) {
+        const n = items.length;
+        const k = items.filter((t) => t.flagged).length;
+        const kc = items.filter((t) => t.clear_fail).length;
+        const [lo, hi] = wilson(k, n);
+        rows.push({
+          dimension, segment, segment_order: orderOf(items[0]), n, n_flagged: k, n_clear: kc,
+          flagged_pct: pct(k / n), flagged_low_pct: pct(lo), flagged_high_pct: pct(hi), clear_pct: pct(kc / n),
+        });
+      }
+    }
+    return rows;
+  }
+
+  function buildTiming(incidents, trailers) {
+    const dur = new Map(trailers.map((t) => [t.movie_id, t.duration_sec]));
+    const counts = new Array(10).fill(0);
+    let total = 0;
+    for (const i of incidents) {
+      const d = dur.get(i.movie_id), start = Number(i.start_sec);
+      if (!d || !(start >= 0)) continue;
+      counts[Math.min(Math.floor((10 * start) / d), 9)] += 1;
+      total += 1;
+    }
+    return counts.map((n, k) => ({ label: `${k * 10}–${k * 10 + 10}%`, n, share_pct: Math.round((1000 * n) / total) / 10 }));
+  }
+
+  // ---------- drawing ----------
+  const pctText = (v) => (v === null || v === undefined ? '—' : `${Math.round(v)}%`);
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+
+  function makeTip(el) {
+    const tip = document.createElement('div');
+    tip.className = 'tip';
+    tip.hidden = true;
+    el.appendChild(tip);
+    return {
+      show(event, lines) {
+        tip.replaceChildren(...lines.map(([text, cls]) => { const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = text; return d; }));
+        tip.hidden = false;
+        const box = el.getBoundingClientRect();
+        const x = event.clientX - box.left, y = event.clientY - box.top;
+        let left = x + 12; if (left + tip.offsetWidth > el.clientWidth) left = Math.max(0, x - tip.offsetWidth - 12);
+        let top = y - tip.offsetHeight - 8; if (top < 0) top = y + 14;
+        tip.style.left = `${left}px`; tip.style.top = `${top}px`;
+      },
+      hide() { tip.hidden = true; },
+    };
+  }
+
+  function rateChart(el, all, dimension, sortByRate) {
+    const rows = all.filter((d) => d.dimension === dimension && d.segment !== 'Unknown')
+      .sort((a, b) => (sortByRate ? b.flagged_pct - a.flagged_pct : a.segment_order - b.segment_order));
+    const overall = all.find((d) => d.dimension === 'Overall');
+    el.replaceChildren();
+    const width = Math.max(260, el.clientWidth);
+    const rowH = 34, top = 8, bottom = 26, height = top + rows.length * rowH + bottom;
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('height', height)
+      .attr('viewBox', `0 0 ${width} ${height}`).attr('role', 'img')
+      .attr('aria-label', `Share of trailers flagged by ${dimension.toLowerCase()}: ` + rows.map((d) => `${d.segment} ${Math.round(d.flagged_pct)}%`).join(', '));
+    const labels = svg.append('g'), counts = svg.append('g');
+    labels.selectAll('text').data(rows).join('text').attr('class', 'label')
+      .attr('y', (d, i) => top + i * rowH + rowH / 2).attr('dy', '0.35em').text((d) => d.segment);
+    counts.selectAll('text').data(rows).join('text')
+      .attr('y', (d, i) => top + i * rowH + rowH / 2).attr('dy', '0.35em').text((d) => `n=${d.n}`);
+    let lw = 0, cw = 0;
+    labels.selectAll('text').each(function () { lw = Math.max(lw, this.getComputedTextLength()); });
+    counts.selectAll('text').each(function () { cw = Math.max(cw, this.getComputedTextLength()); });
+    labels.selectAll('text').attr('x', 0);
+    counts.selectAll('text').attr('x', lw + 8);
+    const x = d3.scaleLinear().domain([0, 100]).range([lw + cw + 22, width - 40]);
+    const axis = svg.append('g').attr('transform', `translate(0,${top + rows.length * rowH})`)
+      .call(d3.axisBottom(x).ticks(width < 420 ? 3 : 5).tickFormat((v) => `${v}%`).tickSizeOuter(0));
+    axis.selectAll('.tick line').clone().attr('y2', -rows.length * rowH).style('stroke', css('--grid'));
+    const row = svg.append('g').selectAll('g').data(rows).join('g').attr('transform', (d, i) => `translate(0,${top + i * rowH})`);
+    row.append('rect').attr('x', x(0)).attr('y', 7).attr('height', rowH - 14).attr('rx', 2)
+      .attr('width', (d) => x(d.flagged_pct) - x(0)).style('fill', css('--series-1'));
+    row.append('rect').attr('x', x(0)).attr('y', rowH / 2 - 3).attr('height', 6).attr('rx', 1)
+      .attr('width', (d) => x(d.clear_pct) - x(0)).style('fill', css('--series-2'));
+    const muted = css('--muted');
+    row.append('line').attr('x1', (d) => x(d.flagged_low_pct)).attr('x2', (d) => x(d.flagged_high_pct))
+      .attr('y1', rowH / 2).attr('y2', rowH / 2).style('stroke', muted).style('stroke-width', 1.5);
+    for (const k of ['flagged_low_pct', 'flagged_high_pct']) {
+      row.append('line').attr('x1', (d) => x(d[k])).attr('x2', (d) => x(d[k]))
+        .attr('y1', rowH / 2 - 5).attr('y2', rowH / 2 + 5).style('stroke', muted).style('stroke-width', 1.5);
+    }
+    row.append('text').attr('class', 'label').attr('x', (d) => x(d.flagged_high_pct) + 6)
+      .attr('y', rowH / 2).attr('dy', '0.35em').text((d) => pctText(d.flagged_pct));
+    if (overall) {
+      svg.append('line').attr('x1', x(overall.flagged_pct)).attr('x2', x(overall.flagged_pct))
+        .attr('y1', top - 4).attr('y2', top + rows.length * rowH)
+        .style('stroke', css('--ref')).style('stroke-dasharray', '4 3');
+    }
+    const tip = makeTip(el);
+    row.append('rect').attr('width', width).attr('height', rowH).style('fill', 'transparent')
+      .on('pointermove', (event, d) => tip.show(event, [
+        [d.segment, 'h'], [`${d.n} trailers`, 'm'],
+        [`Flagged: ${d.n_flagged} (${pctText(d.flagged_pct)})`],
+        [`95% range: ${pctText(d.flagged_low_pct)}–${pctText(d.flagged_high_pct)}`, 'm'],
+        [`Clear fail: ${d.n_clear} (${pctText(d.clear_pct)})`],
+      ]))
+      .on('pointerleave', () => tip.hide());
+  }
+
+  function timingChart(el, rows) {
+    el.replaceChildren();
+    const width = Math.max(260, el.clientWidth), height = 230;
+    const m = { top: 18, right: 8, bottom: 30, left: 34 };
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('height', height)
+      .attr('viewBox', `0 0 ${width} ${height}`).attr('role', 'img')
+      .attr('aria-label', 'Flagged sections by how far into the trailer they start: ' + rows.map((d) => `${d.label}: ${d.n}`).join(', '));
+    const x = d3.scaleBand().domain(rows.map((d) => d.label)).range([m.left, width - m.right]).padding(0.18);
+    const y = d3.scaleLinear().domain([0, d3.max(rows, (d) => d.n) * 1.15]).nice().range([height - m.bottom, m.top]);
+    const ya = svg.append('g').attr('transform', `translate(${m.left},0)`).call(d3.axisLeft(y).ticks(4).tickSizeOuter(0));
+    ya.selectAll('.tick line').clone().attr('x2', width - m.left - m.right).style('stroke', css('--grid'));
+    ya.select('.domain').remove();
+    const narrow = width < 420;
+    svg.append('g').attr('transform', `translate(0,${height - m.bottom})`)
+      .call(d3.axisBottom(x).tickSizeOuter(0).tickFormat((d, i) => {
+        // full ranges ("70–80%") only when there's room; otherwise each bar's start ("70%"), every other one if very tight
+        if (x.bandwidth() >= 62) return d;
+        if (x.bandwidth() >= 28) return `${i * 10}%`;
+        return i % 2 === 0 ? `${i * 10}%` : '';
+      }));
+    svg.append('g').selectAll('rect').data(rows).join('rect')
+      .attr('x', (d) => x(d.label)).attr('width', x.bandwidth()).attr('rx', 2)
+      .attr('y', (d) => y(d.n)).attr('height', (d) => y(0) - y(d.n)).style('fill', css('--series-1'));
+    if (!narrow) {
+      svg.append('g').selectAll('text').data(rows).join('text').attr('text-anchor', 'middle')
+        .attr('x', (d) => x(d.label) + x.bandwidth() / 2).attr('y', (d) => y(d.n) - 5).text((d) => d.n);
+    }
+    const tip = makeTip(el);
+    svg.append('g').selectAll('rect').data(rows).join('rect')
+      .attr('x', (d) => x(d.label)).attr('width', x.bandwidth()).attr('y', m.top).attr('height', height - m.top - m.bottom)
+      .style('fill', 'transparent')
+      .on('pointermove', (event, d) => tip.show(event, [
+        [`${d.label} of the way through`, 'h'], [`${d.n} flagged sections start here`],
+        [`${pctText(d.share_pct)} of all flagged sections`, 'm'],
+      ]))
+      .on('pointerleave', () => tip.hide());
+  }
+
+  // ---------- load and render ----------
+  Promise.all([d3.csv('data/games.csv'), d3.csv('data/scans.csv'), d3.csv('data/incidents.csv')])
+    .then(([games, scans, incidents]) => {
+      const trailers = buildTrailers(scans, games);
+      const overall = buildOverall(trailers);
+      const rates = buildRates(trailers);
+      const timing = buildTiming(incidents, trailers);
+
+      const top = (dimension) => {
+        const g = rates.filter((d) => d.dimension === dimension && d.segment !== 'Unknown');
+        const best = d3.max(g, (d) => d.flagged_pct);
+        const names = g.filter((d) => d.flagged_pct === best).map((d) => d.segment);
+        return { names: names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0], pct: best };
+      };
+      const seg = (dimension, segment) => rates.find((d) => d.dimension === dimension && d.segment === segment);
+      const peak = timing.reduce((a, b) => (b.n > a.n ? b : a));
+
+      setText('take-flagged', pctText(overall.flagged_pct));
+      setText('take-n', d3.format(',')(overall.n));
+      setText('take-genre', top('Genre').names);
+      setText('take-genre-pct', pctText(top('Genre').pct));
+      setText('take-price', top('Price').names);
+      setText('take-price-pct', pctText(top('Price').pct));
+      setText('kpi-n', d3.format(',')(overall.n));
+      setText('kpi-flagged', pctText(overall.flagged_pct));
+      setText('kpi-clear', pctText(overall.clear_pct));
+      setText('kpi-seconds', overall.median_flagged_sec === null ? '—' : `${overall.median_flagged_sec} s`);
+      setText('timing-peak', `${peak.label} of the way through`);
+      setText('timing-peak-share', pctText(peak.share_pct));
+      setText('ft-flagged', overall.n_flagged);
+      setText('ft-bright', overall.n_brightness);
+      setText('ft-red', overall.n_red_only);
+      setText('fps-60', pctText(seg('Frame rate', '60 fps')?.flagged_pct));
+      setText('fps-30', pctText(seg('Frame rate', '30 fps or less')?.flagged_pct));
+
+      const draws = [
+        ['chart-genre', (el) => rateChart(el, rates, 'Genre', true)],
+        ['chart-price', (el) => rateChart(el, rates, 'Price', false)],
+        ['chart-era', (el) => rateChart(el, rates, 'Release era', false)],
+        ['chart-timing', (el) => timingChart(el, timing)],
+      ];
+      for (const [id, draw] of draws) {
+        const el = document.getElementById(id);
+        let lastW = -1;
+        const redraw = () => { if (el.clientWidth !== lastW) { lastW = el.clientWidth; draw(el); } };
+        new ResizeObserver(redraw).observe(el);
+        redraw();
+      }
+      matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => draws.forEach(([id, draw]) => draw(document.getElementById(id))));
+    })
+    .catch((err) => {
+      for (const id of ['chart-genre', 'chart-price', 'chart-era', 'chart-timing']) {
+        const el = document.getElementById(id);
+        el.replaceChildren();
+        const d = document.createElement('div'); d.className = 'err'; d.textContent = 'Failed to load the data.';
+        el.appendChild(d);
+      }
+      console.error(err);
+    });
+})();
+</script>
+</body>
+</html>
