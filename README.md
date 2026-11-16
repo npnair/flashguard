@@ -4,6 +4,29 @@ Scan a video for flashing that can trigger photosensitive seizures, and get a ti
 
 I have epilepsy, and most creators and game developers never check their content for this. FlashGuard checks a video against the WCAG accessibility rules for flashing and tells you what fails and when.
 
+**📊 Interactive dashboard: [npnair.github.io/flashguard](https://npnair.github.io/flashguard)**
+
+## What I found: 1 in 3 Steam game trailers fails
+
+I used FlashGuard to scan the main trailer of 240 randomly sampled Steam games (40 per genre).
+
+- **35% were flagged** for more than 3 flashes per second. With a stricter line of 4+ per second, it's still **30%**.
+- **Action and Sports trailers fail most (48%)**, Simulation least (20%).
+- **$40+ games fail most by price (82%)**, though that group is small (17 games).
+- **Flashing clusters at 70 to 90% of the way through a trailer**, the big finale before the logo.
+- **The fix is usually small:** a failing trailer has a median of about 4 seconds of flagged footage.
+
+A spot check of still frames from 6 flagged trailers found 4 real flashes and 2 borderline false alarms, which is why the stricter 4+/sec line is reported too. Details and limits are on the dashboard.
+
+## How the project fits together
+
+| Part | Folder | What it does |
+|---|---|---|
+| Detector | `flashguard/` | Scans a video frame by frame against the WCAG flash rules, with 13 tests |
+| Study pipeline | `study/` | Samples Steam games, downloads each trailer without playing it, scans it and deletes it |
+| Warehouse | `warehouse/` | PostgreSQL in Docker plus dbt models (staging → marts) with 30 data tests |
+| Dashboard | `docs/` | The interactive results page, hosted on GitHub Pages |
+
 ## What it checks
 
 FlashGuard follows the WCAG 2.x "three flashes" threshold:
