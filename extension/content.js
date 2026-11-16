@@ -59,8 +59,10 @@
       setTimeout(() => resolve(60), 1500);   // a throttled frame never finishes measuring
     });
   }
-  // fastest speed at which every frame of a 30 fps video still gets drawn
-  const speedFor = (hz) => (isFinite(hz) && hz > 0 ? Math.max(1, Math.min(4, Math.floor(hz / 30 + 0.1))) : 2);
+  // Fastest speed at which every frame of a 30 fps video still gets drawn: 2x at 60 Hz, up to 4x at 120 Hz+.
+  // Never starts below 2x: a busy page can make the screen measure slower than it is, and if frames really
+  // do get dropped the check slows itself down (see the dropped-frame check in scanFrame).
+  const speedFor = (hz) => (isFinite(hz) && hz > 0 ? Math.max(2, Math.min(4, Math.floor(hz / 30 + 0.1))) : 2);
 
   /** Reads small frames from a video and runs the detector on them. */
   class FrameReader {
